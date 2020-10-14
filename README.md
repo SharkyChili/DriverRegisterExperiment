@@ -167,7 +167,7 @@ ServiceLoad中
         }
 ```
 也就是说，ServiceLoader，也就是所谓的JDK SPI，采用的是Thread.currentThread().getContextClassLoader()，也就是所谓的线程上下文类加载器来执行SPI操作的<br/>
-而且，SPI加载到的驱动在driversIterator.next()中，会被线程上下文类加载加载，并在格子的static{}中注册到DriverManager中
+而且，SPI加载到的驱动在driversIterator.next()中，会被线程上下文类加载加载，并在各自的static{}中注册到DriverManager中
 ## 3.java.sql.DriverManager#getConnection(java.lang.String)
 ```
     public static Connection getConnection(String url)
@@ -243,6 +243,7 @@ ServiceLoad中
 **第一步如果被注释，那么DriverManager中保存的是线程上下文加载器加载的驱动，获取连接却是获取当前类加载器加载过的驱动，如果线程上下文加载器与当前加载器不一致，那么就拿不到这个驱动。**
 # 自定义类加载器
 既然要线程上下文加载器与当前加载器不一致，那么我们就自定义一个类加载器吧，当然，完全可以利用JDK中的URLClassLoader等加载器来做，但是我在工作项目中本身就定义了类加载器，基本上拿来就能用，因此我们就自定义一个类加载器吧。<br/>
+这个类加载器其实是完成一些其他需求的，做了一些额外操作，这里复制过来而已，很多特性跟这篇文章的场景并不一致，不用在意这些
 ```
 public class SelfDefinedClassLoader extends URLClassLoader {
 

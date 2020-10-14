@@ -1,5 +1,3 @@
-# DriverRegisterExperiment
-
 # git
 https://github.com/fw1036994377/DriverRegisterExperiment.git
 # 前言
@@ -245,6 +243,73 @@ ServiceLoad中
 **第一步如果被注释，那么DriverManager中保存的是线程上下文加载器加载的驱动，获取连接却是获取当前类加载器加载过的驱动，如果线程上下文加载器与当前加载器不一致，那么就拿不到这个驱动。**
 # 自定义类加载器
 既然要线程上下文加载器与当前加载器不一致，那么我们就自定义一个类加载器吧，当然，完全可以利用JDK中的URLClassLoader等加载器来做，但是我在工作项目中本身就定义了类加载器，基本上拿来就能用，因此我们就自定义一个类加载器吧。<br/>
+```
+public class SelfDefinedClassLoader extends URLClassLoader {
+
+    public SelfDefinedClassLoader(URL[] urls, ClassLoader parent) {
+        super(urls, parent);
+    }
+
+    public SelfDefinedClassLoader(String path) {
+        //父加载器用SelfDefinedClassLoader的加载器，此时多半是ApplicationClassLoader
+        this(path, SelfDefinedClassLoader.class.getClassLoader());
+        //System.out.println("SelfDefinedClassLoader parent :" + SelfDefinedClassLoader.class.getClassLoader());
+    }
+
+    public SelfDefinedClassLoader(String path, ClassLoader parent) {
+        this(buildURLs(path), parent);
+    }
+
+    private static URL[] buildURLs(String path) {
+        //System.out.println("buildURLs : " + path);
+        List<URL> urls = new ArrayList<>();
+        File jarPath = new File(path);
+        URL url;
+        try {
+            url = jarPath.toURI().toURL();
+        } catch (MalformedURLException e) {
+            throw new RuntimeException("something goes wrong when load jars.");
+        }
+        urls.add(url);
+        URL[] array = urls.toArray(new URL[0]);
+        return array;
+    }
+
+
+    @Override
+    protected synchronized Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+        // First, check if the class has already been loaded
+        Class<?> c = findLoadedClass(name);
+        if (c == null) {
+            long t0 = System.nanoTime();
+            try {
+                c = findClass(name);
+            } catch (ClassNotFoundException e) {
+                // ClassNotFoundException thrown if class not found
+                // from the non-null parent class loader
+            }
+
+            if (c == null) {
+                // If still not found, then invoke findClass in order
+                // to find the class.
+                long t1 = System.nanoTime();
+
+                c = getParent().loadClass(name);
+
+                // this is the defining class loader; record the stats
+                sun.misc.PerfCounter.getParentDelegationTime().addTime(t1 - t0);
+                sun.misc.PerfCounter.getFindClassTime().addElapsedTimeFrom(t1);
+                sun.misc.PerfCounter.getFindClasses().increment();
+            }
+        }
+        if (resolve) {
+            resolveClass(c);
+        }
+        return c;
+    }
+}
+```
+
 我们写一个模块，依赖我们的驱动，然后打包成fatjar到某个指定位置，然后在另一个模块中用我们自定义的类加载器来加载这个fatjar并且调用他的方法。  
 这里代码过多，就不贴出来了，只贴个入口吧，具体代码请查看git
 ```
